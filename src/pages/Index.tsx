@@ -26,6 +26,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import Icon from "@/components/ui/icon";
 
 // Mock data
@@ -37,6 +45,8 @@ const mockExams = [
     score: 85,
     minScore: 39,
     passed: true,
+    appeal: null,
+    scans: ["scan1.pdf", "scan2.pdf"],
     tasks: [
       { id: 1, answer: "5", maxScore: 1, score: 1, type: "test" },
       { id: 2, answer: "12", maxScore: 1, score: 1, type: "test" },
@@ -59,6 +69,8 @@ const mockExams = [
     score: 92,
     minScore: 40,
     passed: true,
+    appeal: null,
+    scans: ["scan3.pdf"],
     tasks: [
       { id: 1, answer: "23", maxScore: 1, score: 1, type: "test" },
       { id: 2, answer: "также", maxScore: 1, score: 1, type: "test" },
@@ -72,6 +84,8 @@ const mockExams = [
     score: 32,
     minScore: 39,
     passed: false,
+    appeal: { date: "2024-06-10", status: "pending" },
+    scans: [],
     tasks: [
       { id: 1, answer: "3", maxScore: 1, score: 0, type: "test" },
       { id: 2, answer: "8", maxScore: 1, score: 1, type: "test" },
@@ -86,28 +100,46 @@ const mockStudents = [
   { id: 3, name: "Сидоров Петр", number: "1122334455" },
 ];
 
+// Mock student-exam results
+const mockStudentExams = [
+  { studentId: 1, examId: 1, score: 85, appeal: null },
+  { studentId: 1, examId: 2, score: 92, appeal: null },
+  { studentId: 2, examId: 1, score: 76, appeal: null },
+  {
+    studentId: 3,
+    examId: 3,
+    score: 32,
+    appeal: { date: "2024-06-10", status: "pending" },
+  },
+];
+
 const Index = () => {
   const [userType, setUserType] = useState(null); // "student" or "admin"
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginNumber, setLoginNumber] = useState("");
   const [loginSurname, setLoginSurname] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
+  const [adminSurname, setAdminSurname] = useState("");
   const [selectedExam, setSelectedExam] = useState(null);
   const [showAppeal, setShowAppeal] = useState(false);
+  const [showAdminDialog, setShowAdminDialog] = useState(false);
 
   // Admin states
   const [exams, setExams] = useState(mockExams);
   const [students, setStudents] = useState(mockStudents);
+  const [studentExams, setStudentExams] = useState(mockStudentExams);
   const [showCreateExamDialog, setShowCreateExamDialog] = useState(false);
   const [showCreateStudentDialog, setShowCreateStudentDialog] = useState(false);
+  const [showEditScoresDialog, setShowEditScoresDialog] = useState(false);
   const [newExam, setNewExam] = useState({ name: "", date: "", minScore: "" });
   const [newStudent, setNewStudent] = useState({ name: "", number: "" });
   const [selectedExamForEdit, setSelectedExamForEdit] = useState(null);
+  const [selectedStudentForEdit, setSelectedStudentForEdit] = useState(null);
   const [newTask, setNewTask] = useState({
     type: "test",
     maxScore: 1,
     criteria: "",
   });
+  const [editingScores, setEditingScores] = useState({});
 
   const handleStudentLogin = () => {
     if (loginNumber.length === 10 && loginSurname.trim()) {
@@ -124,9 +156,13 @@ const Index = () => {
   };
 
   const handleAdminLogin = () => {
-    if (adminPassword === "admin123") {
+    if (
+      adminSurname.toLowerCase() === "администратор" ||
+      adminSurname.toLowerCase() === "админ"
+    ) {
       setIsAuthenticated(true);
       setUserType("admin");
+      setShowAdminDialog(false);
     }
   };
 
@@ -136,6 +172,26 @@ const Index = () => {
 
   const handleAppeal = () => {
     setShowAppeal(true);
+    // Update exam with appeal status
+    const updatedExams = mockExams.map((exam) => {
+      if (exam.id === selectedExam.id) {
+        return {
+          ...exam,
+          appeal: {
+            date: new Date().toISOString().split("T")[0],
+            status: "pending",
+          },
+        };
+      }
+      return exam;
+    });
+    setSelectedExam({
+      ...selectedExam,
+      appeal: {
+        date: new Date().toISOString().split("T")[0],
+        status: "pending",
+      },
+    });
   };
 
   const handleCreateExam = () => {
@@ -147,6 +203,8 @@ const Index = () => {
         minScore: parseInt(newExam.minScore),
         score: 0,
         passed: false,
+        appeal: null,
+        scans: [],
         tasks: [],
       };
       setExams([...exams, exam]);
@@ -192,10 +250,32 @@ const Index = () => {
     }
   };
 
+  const handleScoreEdit = (studentId, examId, newScore) => {
+    const updatedStudentExams = studentExams.map((se) => {
+      if (se.studentId === studentId && se.examId === examId) {
+        return { ...se, score: parseInt(newScore) };
+      }
+      return se;
+    });
+    setStudentExams(updatedStudentExams);
+  };
+
+  const getStudentExamResult = (studentId, examId) => {
+    return studentExams.find(
+      (se) => se.studentId === studentId && se.examId === examId,
+    );
+  };
+
+  const getAppealsCount = () => {
+    return studentExams.filter(
+      (se) => se.appeal && se.appeal.status === "pending",
+    ).length;
+  };
+
   if (!userType) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full">
+        <div className="w-full max-w-md">
           {/* Student Login */}
           <Card className="w-full">
             <CardHeader className="text-center">
@@ -203,9 +283,9 @@ const Index = () => {
                 <Icon name="GraduationCap" className="w-8 h-8 text-white" />
               </div>
               <CardTitle className="text-2xl font-bold text-gray-900">
-                Личный кабинет
+                Портал ЕГЭ
               </CardTitle>
-              <CardDescription>Для учащихся</CardDescription>
+              <CardDescription>Личный кабинет учащегося</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -239,43 +319,51 @@ const Index = () => {
                 className="w-full bg-blue-600 hover:bg-blue-700"
                 disabled={loginNumber.length !== 10 || !loginSurname.trim()}
               >
-                Войти как учащийся
+                Войти
               </Button>
             </CardContent>
           </Card>
 
-          {/* Admin Login */}
-          <Card className="w-full">
-            <CardHeader className="text-center">
-              <div className="mx-auto mb-4 w-16 h-16 bg-red-600 rounded-full flex items-center justify-center">
-                <Icon name="Settings" className="w-8 h-8 text-white" />
-              </div>
-              <CardTitle className="text-2xl font-bold text-gray-900">
-                Админ-панель
-              </CardTitle>
-              <CardDescription>Для администраторов</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="adminPassword">Пароль администратора</Label>
-                <Input
-                  id="adminPassword"
-                  type="password"
-                  placeholder="••••••••"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="text-center"
-                />
-              </div>
-              <Button
-                onClick={handleAdminLogin}
-                className="w-full bg-red-600 hover:bg-red-700"
-                disabled={!adminPassword}
-              >
-                Войти как админ
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Admin Login Button */}
+          <div className="mt-4 text-center">
+            <Dialog open={showAdminDialog} onOpenChange={setShowAdminDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <Icon name="Settings" className="w-4 h-4 mr-2" />
+                  Вход для администратора
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Вход администратора</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="adminSurname">Фамилия администратора</Label>
+                    <Input
+                      id="adminSurname"
+                      type="text"
+                      placeholder="Администратор"
+                      value={adminSurname}
+                      onChange={(e) => setAdminSurname(e.target.value)}
+                      className="text-center"
+                    />
+                  </div>
+                  <Button
+                    onClick={handleAdminLogin}
+                    className="w-full bg-red-600 hover:bg-red-700"
+                    disabled={!adminSurname.trim()}
+                  >
+                    Войти в админ-панель
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
     );
@@ -301,25 +389,33 @@ const Index = () => {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setUserType(null);
-                  setIsAuthenticated(false);
-                }}
-              >
-                <Icon name="LogOut" className="w-4 h-4 mr-2" />
-                Выход
-              </Button>
+              <div className="flex items-center space-x-4">
+                <Badge variant="outline" className="text-orange-600">
+                  Аппеляций: {getAppealsCount()}
+                </Badge>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setUserType(null);
+                    setIsAuthenticated(false);
+                    setAdminSurname("");
+                  }}
+                >
+                  <Icon name="LogOut" className="w-4 h-4 mr-2" />
+                  Выход
+                </Button>
+              </div>
             </div>
           </div>
         </header>
 
         <main className="max-w-6xl mx-auto px-4 py-8">
           <Tabs defaultValue="exams" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="exams">Экзамены</TabsTrigger>
               <TabsTrigger value="students">Учащиеся</TabsTrigger>
+              <TabsTrigger value="scores">Баллы</TabsTrigger>
+              <TabsTrigger value="appeals">Аппеляции</TabsTrigger>
             </TabsList>
 
             <TabsContent value="exams" className="space-y-6">
@@ -610,14 +706,150 @@ const Index = () => {
                       <CardDescription>Номер: {student.number}</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Icon name="Edit" className="w-4 h-4 mr-2" />
-                        Редактировать
-                      </Button>
+                      <div className="space-y-2">
+                        <div className="text-sm">
+                          Экзаменов сдано:{" "}
+                          {
+                            studentExams.filter(
+                              (se) => se.studentId === student.id,
+                            ).length
+                          }
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setSelectedStudentForEdit(student)}
+                        >
+                          <Icon name="Edit" className="w-4 h-4 mr-2" />
+                          Редактировать
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            </TabsContent>
+
+            <TabsContent value="scores" className="space-y-6">
+              <h2 className="text-2xl font-bold">Редактирование баллов</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Результаты учащихся</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Учащийся</TableHead>
+                        <TableHead>Экзамен</TableHead>
+                        <TableHead>Балл</TableHead>
+                        <TableHead>Статус</TableHead>
+                        <TableHead>Действия</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentExams.map((se) => {
+                        const student = students.find(
+                          (s) => s.id === se.studentId,
+                        );
+                        const exam = exams.find((e) => e.id === se.examId);
+                        return (
+                          <TableRow key={`${se.studentId}-${se.examId}`}>
+                            <TableCell>{student?.name}</TableCell>
+                            <TableCell>{exam?.name}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={se.score}
+                                onChange={(e) =>
+                                  handleScoreEdit(
+                                    se.studentId,
+                                    se.examId,
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-20"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant={
+                                  se.score >= exam?.minScore
+                                    ? "default"
+                                    : "destructive"
+                                }
+                              >
+                                {se.score >= exam?.minScore
+                                  ? "Сдан"
+                                  : "Не сдан"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Button size="sm" variant="outline">
+                                <Icon name="Upload" className="w-4 h-4 mr-2" />
+                                Загрузить сканы
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="appeals" className="space-y-6">
+              <h2 className="text-2xl font-bold">Аппеляции</h2>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Поданные аппеляции</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Учащийся</TableHead>
+                        <TableHead>Экзамен</TableHead>
+                        <TableHead>Дата подачи</TableHead>
+                        <TableHead>Статус</TableHead>
+                        <TableHead>Действия</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentExams
+                        .filter((se) => se.appeal)
+                        .map((se) => {
+                          const student = students.find(
+                            (s) => s.id === se.studentId,
+                          );
+                          const exam = exams.find((e) => e.id === se.examId);
+                          return (
+                            <TableRow key={`${se.studentId}-${se.examId}`}>
+                              <TableCell>{student?.name}</TableCell>
+                              <TableCell>{exam?.name}</TableCell>
+                              <TableCell>{se.appeal.date}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary">
+                                  {se.appeal.status === "pending"
+                                    ? "На рассмотрении"
+                                    : "Рассмотрена"}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button size="sm" variant="outline">
+                                  <Icon name="Eye" className="w-4 h-4 mr-2" />
+                                  Рассмотреть
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </main>
@@ -728,14 +960,22 @@ const Index = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <Button variant="outline" className="w-full justify-start">
-                      <Icon name="FileText" className="w-4 h-4 mr-2" />
-                      Бланк ответов №1
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <Icon name="FileText" className="w-4 h-4 mr-2" />
-                      Бланк ответов №2
-                    </Button>
+                    {selectedExam.scans.length > 0 ? (
+                      selectedExam.scans.map((scan, index) => (
+                        <Button
+                          key={index}
+                          variant="outline"
+                          className="w-full justify-start"
+                        >
+                          <Icon name="FileText" className="w-4 h-4 mr-2" />
+                          {scan}
+                        </Button>
+                      ))
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Сканы не загружены
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -745,18 +985,33 @@ const Index = () => {
                   <CardTitle>Аппеляция</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Button
-                    onClick={handleAppeal}
-                    className="w-full bg-orange-600 hover:bg-orange-700"
-                    disabled={showAppeal}
-                  >
-                    <Icon name="AlertTriangle" className="w-4 h-4 mr-2" />
-                    {showAppeal ? "Аппеляция подана" : "Подать аппеляцию"}
-                  </Button>
-                  {showAppeal && (
-                    <p className="text-sm text-gray-600 mt-2">
-                      Ваша аппеляция принята к рассмотрению
-                    </p>
+                  {selectedExam.appeal ? (
+                    <div className="space-y-2">
+                      <Badge
+                        variant="secondary"
+                        className="w-full justify-center"
+                      >
+                        Аппеляция подана
+                      </Badge>
+                      <p className="text-sm text-gray-600">
+                        Дата подачи: {selectedExam.appeal.date}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Статус:{" "}
+                        {selectedExam.appeal.status === "pending"
+                          ? "На рассмотрении"
+                          : "Рассмотрена"}
+                      </p>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleAppeal}
+                      className="w-full bg-orange-600 hover:bg-orange-700"
+                      disabled={showAppeal}
+                    >
+                      <Icon name="AlertTriangle" className="w-4 h-4 mr-2" />
+                      {showAppeal ? "Аппеляция подана" : "Подать аппеляцию"}
+                    </Button>
                   )}
                 </CardContent>
               </Card>
@@ -819,9 +1074,18 @@ const Index = () => {
                       <div className="text-2xl font-bold text-gray-900">
                         {exam.score}
                       </div>
-                      <Badge variant={exam.passed ? "default" : "destructive"}>
-                        {exam.passed ? "Сдан" : "Не сдан"}
-                      </Badge>
+                      <div className="flex flex-col items-end space-y-1">
+                        <Badge
+                          variant={exam.passed ? "default" : "destructive"}
+                        >
+                          {exam.passed ? "Сдан" : "Не сдан"}
+                        </Badge>
+                        {exam.appeal && (
+                          <Badge variant="secondary" className="text-xs">
+                            Аппеляция подана
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="text-sm text-gray-600">
                       Минимальный балл: {exam.minScore}
